@@ -95,3 +95,66 @@ Conclusie:
 Nu heb je een goed uitgangspunt! Je maakt zelf de stickman in verschillende poses, laad deze in, en creëert animaties met de juiste momentopnames. De basiscode is flexibel genoeg voor uitbreiding zoals het afspelen van verschillende animaties (lopen, springen, zitten) in je Python-project.
 
 Als je verder wilt gaan met een interactieve animatie (bijvoorbeeld met geluid of meer geavanceerde interacties), dan zou je Pygame of een andere game-engine kunnen overwegen. Laat me weten of je hulp nodig hebt met een van die vervolgstappen! 😊
+
+
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator, img_to_array, load_img
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+from tensorflow.keras import layers, models
+
+# Stel het model in (gebruik hier een pre-trained MobileNetV2)
+base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+
+# Vervolg de training met een eigen classificatielaag bovenop MobileNetV2
+model = models.Sequential([
+    base_model,
+    layers.GlobalAveragePooling2D(),
+    layers.Dense(3, activation='softmax')  # 3 classes: walking, sitting, standing
+])
+
+# Freeze de layers van het pre-trained model (enkel het laatste deel trainen)
+base_model.trainable = False
+
+# Compileer het model
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+# Gebruik ImageDataGenerator om afbeeldingen voor te bereiden
+train_datagen = ImageDataGenerator(
+    rescale=1.0/255.0,
+    rotation_range=20,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True
+)
+
+# Dataset laden (Je kunt deze data gebruiken als 'train' voor 'walking', 'sitting', 'standing' mappen)
+train_generator = train_datagen.flow_from_directory(
+    'images/',  # De map waarin je je trainingsafbeeldingen hebt opgeslagen
+    target_size=(224, 224),
+    batch_size=32,
+    class_mode='categorical'  # We willen 3 categorieën (classificatie)
+)
+
+# Train het model
+model.fit(train_generator, steps_per_epoch=100, epochs=10)
+
+# Nu het model is getraind, kan het worden gebruikt om afbeeldingen te classificeren.
+
+# Voorbeeld van afbeelding classificatie:
+def classify_action(image_path):
+    img = load_img(image_path, target_size=(224, 224))
+    img_array = img_to_array(img)
+    img_array = tf.expand_dims(img_array, 0)  # Het model verwacht een batch van afbeeldingen, dus voeg een batch-dimensie toe
+    img_array = preprocess_input(img_array)
+
+    predictions = model.predict(img_array)
+    class_labels = ['Walking', 'Sitting', 'Standing']
+    predicted_class = class_labels[predictions.argmax()]
+    
+    print(f"Predicted action: {predicted_class}")
+
+# Test het model met een nieuwe afbeelding:
+classify_action('test_image.png')
